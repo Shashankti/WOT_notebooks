@@ -13,7 +13,7 @@ import sklearn
 import wot.io
 import wot.ot
 
-from optimal_transport import *
+from optimal_transport_with_epsilon_matrix import *
 from initializer import *
 from util import *
 
@@ -40,7 +40,8 @@ class OTModel:
 
     def __init__(self, matrix, day_field='day', covariate_field='covariate',
                  growth_rate_field='cell_growth_rate',lambda1_array = 'lambda1',
-                 lambda2_array = 'lambda2', epsilon_array = 'epsilon',growth_average_field='q_avg' ,**kwargs):
+                 lambda2_array = 'lambda2', epsilon_col = 'epsilon_col',
+                 epsilon_row = 'epsilon_row',growth_average_field='q_avg' ,**kwargs):
         self.matrix = matrix
         self.day_field = day_field
         self.covariate_field = covariate_field
@@ -48,7 +49,8 @@ class OTModel:
         self.growth_average = growth_average_field
         self.lambda1_array = lambda1_array
         self.lambda2_array = lambda2_array
-        self.epsilon_array = epsilon_array
+        self.epsilon_col = epsilon_col
+        self.epsilon_row = epsilon_row
         self.day_pairs = wot.ot.parse_configuration(kwargs.pop('config', None))
         cell_filter = kwargs.pop('cell_filter', None)
         gene_filter = kwargs.pop('gene_filter', None)
@@ -335,10 +337,18 @@ class OTModel:
         else:
             config['lambda2'] = config['lambda2']
             
-        if self.epsilon_array in p0.obs.columns:
-            config['epsilon'] = np.array(p0.obs[self.epsilon_array].tolist())
+        if self.epsilon_row in p0.obs.columns:
+            config['epsilon_row'] = np.array(p0.obs[self.epsilon_row].tolist())
         else:
-            config['epsilon'] = config['epsilon']
+            config['epsilon_row'] = 0.05*(np.ones(len(p0.obs)))
+
+        if self.epsilon_col in p1.obs.columns:
+            config['epsilon_col'] = np.array(p1.obs[self.epsilon_col].tolist())
+        else:
+            config['epsilon_col'] = np.ones(len(p1.obs))
+
+        if self.epsilon_col in p1.obs.columns and self.epsilon_row in p0.obs.columns:
+            config['epsilon'] = config['epsilon_row'].reshape(len(p0.obs),1)*config['epsilon_col']
             
         if self.growth_average in p1.obs.columns:
             config['G_avg'] = p1.obs[self.growth_average].tolist()

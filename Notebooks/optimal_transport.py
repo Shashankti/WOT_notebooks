@@ -156,6 +156,33 @@ def dual(C, K, R, dx, dy, p, q, a, b, epsilon, lambda1, lambda2):
            - epsilon * np.sum(R - K) / (I * J)
 
 
+
+
+# Change the primal and dual function to remove the effect of lambda2
+
+
+def new_primal(C, K, R, dx, dy, p, q, a, b, epsilon, lambda1, lambda2):
+    I = len(p)
+    J = len(q)
+    F1 = lambda x, y: fdiv(lambda1, x, p, y)
+    # F2 = lambda x, y: fdiv(lambda2, x, q, y)
+    F2 = 0
+    with np.errstate(divide='ignore'):
+        return F1(np.dot(R, dy), dx) \
+               + (epsilon * np.sum(R * np.nan_to_num(np.log(R)) - R + K) \
+                  + np.sum(R * C)) / (I * J)
+
+def new_dual(C, K, R, dx, dy, p, q, a, b, epsilon, lambda1, lambda2):
+    I = len(p)
+    J = len(q)
+    F1c = lambda u, v: fdivstar(lambda1, u, p, v)
+    # F2c = lambda u, v: fdivstar(lambda2, u, q, v)
+    F2c = 0
+    return - F1c(- epsilon * np.log(a), dx)  \
+           - epsilon * np.sum(R - K) / (I * J)
+    
+
+
 # end @ Lénaïc Chizat
 '''
 def rank_penalty(df,rank_column='rank_column',lambda3 = 1):
@@ -270,8 +297,13 @@ def optimal_transport_duality_gap(C, G, G_avg, lambda1, lambda2, epsilon, batch_
             # Skip duality gap computation for the first epsilon scalings, use dual variables evolution instead
             if e == epsilon_scalings:
                 R = (K.T * a).T * b
-                pri = primal(C, _K, R, dx, dy, p, q, _a, _b, epsilon_i, lambda1, lambda2)
-                dua = dual(C, _K, R, dx, dy, p, q, _a, _b, epsilon_i, lambda1, lambda2)
+                # pri = primal(C, _K, R, dx, dy, p, q, _a, _b, epsilon_i, lambda1, lambda2)
+                # dua = dual(C, _K, R, dx, dy, p, q, _a, _b, epsilon_i, lambda1, lambda2)
+                # Change primal and dual to be from new functions
+                pri = new_primal(C, _K, R, dx, dy, p, q, _a, _b, epsilon_i, lambda1, lambda2)
+                dua = new_dual(C, _K, R, dx, dy, p, q, _a, _b, epsilon_i, lambda1, lambda2)
+                print('this is the new primal',pri)
+                print('this is the new dual',dua)
                 duality_gap = (pri - dua) / abs(pri)
                 #calculate terms of the primal function separately
                 pri_first = primal_first_term(C, _K, R,p, q, epsilon_i)
@@ -287,7 +319,7 @@ def optimal_transport_duality_gap(C, G, G_avg, lambda1, lambda2, epsilon, batch_
                 primal_dictionary = {'P1':pri_first,'P2':pri_second,'P3':pri_third,'P4':pri_fourth,'dg':duality_gap}
                 int_df = pd.DataFrame.from_dict(primal_dictionary,orient='index')
                 pri_df = pd.concat([pri_df,int_df],axis=1)
-               #print('This is the duality gap',duality_gap)
+                print('This is the duality gap',duality_gap)
             else:
                 duality_gap = max(
                     np.linalg.norm(_a - old_a * np.exp(u / epsilon_i)) / (1 + np.linalg.norm(_a)),
